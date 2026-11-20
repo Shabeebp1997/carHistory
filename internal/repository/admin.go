@@ -41,11 +41,11 @@ func (r *AdminRepository) UserAnalytics(ctx context.Context) (*models.UserAnalyt
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
 		    COUNT(*),
-		    SUM(CASE WHEN is_active THEN 1 ELSE 0 END),
-		    SUM(CASE WHEN is_admin  THEN 1 ELSE 0 END),
-		    SUM(CASE WHEN email IS NOT NULL THEN 1 ELSE 0 END),
-		    SUM(CASE WHEN mobile_number IS NOT NULL THEN 1 ELSE 0 END),
-		    SUM(CASE WHEN created_at >= date_trunc('month', NOW()) THEN 1 ELSE 0 END)
+		    COALESCE(SUM(CASE WHEN is_active THEN 1 ELSE 0 END), 0),
+		    COALESCE(SUM(CASE WHEN is_admin  THEN 1 ELSE 0 END), 0),
+		    COALESCE(SUM(CASE WHEN email IS NOT NULL THEN 1 ELSE 0 END), 0),
+		    COALESCE(SUM(CASE WHEN mobile_number IS NOT NULL THEN 1 ELSE 0 END), 0),
+		    COALESCE(SUM(CASE WHEN created_at >= date_trunc('month', NOW()) THEN 1 ELSE 0 END), 0)
 		FROM users`).Scan(&a.Total, &a.Active, &a.Admins, &a.WithEmail, &a.WithPhone, &a.NewThisMonth)
 	return &a, err
 }
@@ -54,7 +54,7 @@ func (r *AdminRepository) VehicleAnalytics(ctx context.Context) (*models.Vehicle
 	var a models.VehicleAnalytics
 
 	row := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*), SUM(CASE WHEN NOT is_archived THEN 1 ELSE 0 END) FROM vehicles`)
+		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN NOT is_archived THEN 1 ELSE 0 END), 0) FROM vehicles`)
 	if err := row.Scan(&a.Total, &a.Active); err != nil {
 		return nil, err
 	}

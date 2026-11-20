@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -96,16 +97,19 @@ func (h *AdminHandler) Analytics(c *gin.Context) {
 
 	users, err := h.adminRepo.UserAnalytics(ctx)
 	if err != nil {
+		log.Printf("UserAnalytics error: %v", err)
 		response.InternalError(c, "failed to fetch user analytics")
 		return
 	}
 	vehicles, err := h.adminRepo.VehicleAnalytics(ctx)
 	if err != nil {
+		log.Printf("VehicleAnalytics error: %v", err)
 		response.InternalError(c, "failed to fetch vehicle analytics")
 		return
 	}
 	activity, err := h.adminRepo.ActivityAnalytics(ctx)
 	if err != nil {
+		log.Printf("ActivityAnalytics error: %v", err)
 		response.InternalError(c, "failed to fetch activity analytics")
 		return
 	}
