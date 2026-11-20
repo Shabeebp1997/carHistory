@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"carhistory/internal/middleware"
 	"carhistory/internal/models"
 	"carhistory/internal/repository"
+	"carhistory/internal/services"
 	"carhistory/pkg/response"
 	"carhistory/pkg/utils"
 )
@@ -1498,35 +1500,41 @@ func (h *ActivityHandler) List(c *gin.Context) {
 // ============================================================
 
 type ReportHandler struct {
-	vehicleRepo  *repository.VehicleRepository
-	expenseRepo  *repository.ExpenseRepository
-	insuranceRepo *repository.InsuranceRepository
-	pucRepo      *repository.PUCRepository
-	serviceRepo  *repository.ServiceRepository
-	reminderRepo *repository.ReminderRepository
-	activityRepo *repository.ActivityRepository
-	odometerRepo *repository.OdometerRepository
+	vehicleRepo      *repository.VehicleRepository
+	maintenanceRepo  *repository.MaintenanceRepository
+	expenseRepo      *repository.ExpenseRepository
+	insuranceRepo    *repository.InsuranceRepository
+	pucRepo          *repository.PUCRepository
+	serviceRepo      *repository.ServiceRepository
+	fuelRepo         *repository.FuelRepository
+	reminderRepo     *repository.ReminderRepository
+	activityRepo     *repository.ActivityRepository
+	odometerRepo     *repository.OdometerRepository
 }
 
 func NewReportHandler(
 	vehicleRepo *repository.VehicleRepository,
+	maintenanceRepo *repository.MaintenanceRepository,
 	expenseRepo *repository.ExpenseRepository,
 	insuranceRepo *repository.InsuranceRepository,
 	pucRepo *repository.PUCRepository,
 	serviceRepo *repository.ServiceRepository,
+	fuelRepo *repository.FuelRepository,
 	reminderRepo *repository.ReminderRepository,
 	activityRepo *repository.ActivityRepository,
 	odometerRepo *repository.OdometerRepository,
 ) *ReportHandler {
 	return &ReportHandler{
-		vehicleRepo:   vehicleRepo,
-		expenseRepo:   expenseRepo,
-		insuranceRepo: insuranceRepo,
-		pucRepo:       pucRepo,
-		serviceRepo:   serviceRepo,
-		reminderRepo:  reminderRepo,
-		activityRepo:  activityRepo,
-		odometerRepo:  odometerRepo,
+		vehicleRepo:     vehicleRepo,
+		maintenanceRepo: maintenanceRepo,
+		expenseRepo:     expenseRepo,
+		insuranceRepo:   insuranceRepo,
+		pucRepo:         pucRepo,
+		serviceRepo:     serviceRepo,
+		fuelRepo:        fuelRepo,
+		reminderRepo:    reminderRepo,
+		activityRepo:    activityRepo,
+		odometerRepo:    odometerRepo,
 	}
 }
 
@@ -1638,6 +1646,66 @@ func (h *ReportHandler) UserDashboard(c *gin.Context) {
 	}
 
 	response.OK(c, dashboard)
+}
+
+func (h *ReportHandler) GenerateVehicleReportPDF(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Unauthorized(c, "unauthorized")
+		return
+	}
+
+	vehicleID, err := uuid.Parse(c.Param("vehicleId"))
+	if err != nil {
+		response.BadRequest(c, "invalid vehicle id")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	vehicle, err := h.vehicleRepo.FindByIDWithRole(ctx, vehicleID, userID)
+	if err != nil {
+		response.InternalError(c, "failed to fetch vehicle")
+		return
+	}
+	if vehicle == nil {
+		response.NotFound(c, "vehicle not found")
+		return
+	}
+
+	serviceRecords, _, _ := h.serviceRepo.FindByVehicle(ctx, vehicleID, 10000, 0)
+	maintenanceRecords, _, _ := h.maintenanceRepo.FindByVehicle(ctx, vehicleID, 10000, 0)
+	insuranceRecords, _ := h.insuranceRepo.FindByVehicle(ctx, vehicleID)
+	pucRecords, _ := h.pucRepo.FindByVehicle(ctx, vehicleID)
+	expenses, _, _ := h.expenseRepo.FindByVehicle(ctx, vehicleID, 10000, 0)
+	fuelLogs, _ := h.fuelRepo.List(ctx, vehicleID)
+
+	data := &services.VehicleReportData{
+		Vehicle:            *vehicle,
+		ServiceRecords:     serviceRecords,
+		MaintenanceRecords: maintenanceRecords,
+		InsuranceRecords:   insuranceRecords,
+		PUCRecords:         pucRecords,
+		Expenses:           expenses,
+		FuelLogs:           fuelLogs,
+		GeneratedAt:        time.Now(),
+	}
+
+	pdfBytes, err := services.GenerateVehicleReportPDF(data)
+	if err != nil {
+		response.InternalError(c, "failed to generate PDF report")
+		return
+	}
+
+	reg := "vehicle"
+	if vehicle.RegistrationNumber != nil {
+		reg = *vehicle.RegistrationNumber
+	}
+	filename := fmt.Sprintf("carhistory-report-%s.pdf", reg)
+
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
 
 func buildReminderStatuses(reminders []models.Reminder, currentKM float64) []models.ReminderStatus {

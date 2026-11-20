@@ -216,6 +216,7 @@ func New(
 		// Reports
 		vehicleSub.GET("/reports/summary", h.Report.VehicleSummary)
 		vehicleSub.GET("/reports/expenses", h.Report.ExpenseReport)
+		vehicleSub.GET("/reports/pdf", h.Report.GenerateVehicleReportPDF)
 	}
 
 	// Media attachments (generic)

@@ -97,10 +97,12 @@ func main() {
 		Activity:      handlers.NewActivityHandler(activityRepo),
 		Report: handlers.NewReportHandler(
 			vehicleRepo,
+			maintenanceRepo,
 			expenseRepo,
 			insuranceRepo,
 			pucRepo,
 			serviceRepo,
+			fuelRepo,
 			reminderRepo,
 			activityRepo,
 			odometerRepo,
