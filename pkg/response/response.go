@@ -1,7 +1,10 @@
 package response
 
 import (
+	"log"
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,8 +25,27 @@ type PaginatedResponse struct {
 	TotalPages int         `json:"total_pages"`
 }
 
+// ensureSlice converts a nil slice into an empty slice so JSON serializes it as
+// `[]` instead of `null`. Non-slice values are returned unchanged.
+func ensureSlice(data interface{}) interface{} {
+	if data == nil {
+		return data
+	}
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return data
+		}
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Slice && v.IsNil() {
+		return reflect.MakeSlice(v.Type(), 0, 0).Interface()
+	}
+	return data
+}
+
 func OK(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusOK, Response{Success: true, Data: data})
+	c.JSON(http.StatusOK, Response{Success: true, Data: ensureSlice(data)})
 }
 
 func OKMessage(c *gin.Context, message string) {
@@ -31,7 +53,7 @@ func OKMessage(c *gin.Context, message string) {
 }
 
 func Created(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusCreated, Response{Success: true, Data: data})
+	c.JSON(http.StatusCreated, Response{Success: true, Data: ensureSlice(data)})
 }
 
 func Paginated(c *gin.Context, data interface{}, total int64, page, limit int) {
@@ -41,7 +63,7 @@ func Paginated(c *gin.Context, data interface{}, total int64, page, limit int) {
 	}
 	c.JSON(http.StatusOK, PaginatedResponse{
 		Success:    true,
-		Data:       data,
+		Data:       ensureSlice(data),
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
@@ -70,5 +92,7 @@ func Conflict(c *gin.Context, err string) {
 }
 
 func InternalError(c *gin.Context, err string) {
+	// Strip any client-facing detail we might have added and log the raw event.
+	log.Printf("[error] internal server error: %s", strings.TrimSpace(err))
 	c.JSON(http.StatusInternalServerError, Response{Success: false, Error: err})
 }

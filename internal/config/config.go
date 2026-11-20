@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -71,6 +72,7 @@ type StorageConfig struct {
 
 type AppConfig struct {
 	BaseURL                    string
+	CORSOrigins                []string
 	InvitationExpiryHours      int
 	PasswordResetExpiryMinutes int
 	ReminderCronSchedule       string
@@ -122,6 +124,7 @@ func Load() (*Config, error) {
 		},
 		App: AppConfig{
 			BaseURL:                   getEnv("APP_BASE_URL", "http://localhost:3000"),
+			CORSOrigins:               parseCSV(getEnv("CORS_ORIGINS", "")),
 			InvitationExpiryHours:     getEnvInt("INVITATION_EXPIRY_HOURS", 72),
 			PasswordResetExpiryMinutes: getEnvInt("PASSWORD_RESET_EXPIRY_MINUTES", 30),
 			ReminderCronSchedule:      getEnv("REMINDER_CRON_SCHEDULE", "0 2 * * *"),
@@ -147,4 +150,19 @@ func getEnvInt(key string, defaultVal int) int {
 		}
 	}
 	return defaultVal
+}
+
+func parseCSV(val string) []string {
+	if val == "" {
+		return nil
+	}
+	parts := strings.Split(val, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

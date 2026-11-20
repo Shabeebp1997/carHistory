@@ -50,8 +50,17 @@ func New(
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
+	origins := []string{cfg.App.BaseURL, "http://localhost:3000"}
+	if len(cfg.App.CORSOrigins) > 0 {
+		origins = append(origins, cfg.App.CORSOrigins...)
+	}
+	// In development, also allow the common Vite/Next.js dev ports.
+	if cfg.Server.Env != "production" {
+		origins = append(origins, "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173")
+	}
+
 	corsConfig := cors.Config{
-		AllowOrigins:     []string{cfg.App.BaseURL, "http://localhost:3000"},
+		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
